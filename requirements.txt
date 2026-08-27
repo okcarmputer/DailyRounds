@@ -1,3 +1,4 @@
 pyodbc
 schedule
 pyyaml
+python-dotenv
