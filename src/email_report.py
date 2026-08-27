@@ -49,6 +49,18 @@ def build_html(sections):
     return html
 
 
+def write_report_file(sections, path):
+    """
+    Write the report HTML to a fixed local path, overwriting any previous run.
+    Used instead of email while M365 tenant-wide SMTP AUTH is disabled — see
+    DAILY_ROUNDS_SETUP.md. A fixed filename (not timestamped) means this never
+    accumulates disk usage on its own; the Windows-side pull script is expected
+    to delete it from this host after a successful copy.
+    """
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(build_html(sections))
+
+
 def send_report(sections):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = f"Daily Rounds — {date.today()}"
