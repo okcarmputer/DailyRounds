@@ -1,6 +1,12 @@
-from datetime import timedelta
+from datetime import date, timedelta
 
 from db import get_connection
+
+# How far back to look for gaps. Walking a table's entire history (some go back
+# to 2025, well before current reporting volume/frequency was in place) buries
+# recent, actionable gaps under a flood of ancient/irrelevant ones — a daily
+# rounds check only needs to catch problems in the recent window.
+LOOKBACK_DAYS = 60
 
 # Derived from the Check 1 freshness rules (1440 minutes / interval), except
 # pumpstation_flow_stage — see below.
@@ -40,16 +46,20 @@ def _find_gaps(cur, table, date_col, expected_per_day):
     Plain SELECT/GROUP BY + gap-walk in Python, deliberately not a stored proc —
     the account this runs as doesn't have CREATE PROCEDURE rights on Prod, and
     this needs no more permission than the other checks already use (SELECT).
+
+    Only looks back LOOKBACK_DAYS from today, not the table's full history.
     """
+    cutoff = date.today() - timedelta(days=LOOKBACK_DAYS)
     cur.execute(
         f"SELECT CAST({date_col} AS date) AS [Day], COUNT(*) AS DayRowCount "
-        f"FROM {table} GROUP BY CAST({date_col} AS date)"
+        f"FROM {table} WHERE {date_col} >= ? GROUP BY CAST({date_col} AS date)",
+        cutoff,
     )
     counts = {row.Day: row.DayRowCount for row in cur.fetchall()}
     if not counts:
         return []
 
-    day, max_day = min(counts), max(counts)
+    day, max_day = cutoff, max(counts)
     gaps = []
     while day <= max_day:
         if counts.get(day, 0) < expected_per_day:
