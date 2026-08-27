@@ -25,7 +25,7 @@ daily-rounds/
 │       ├── flow_loader_check.py   # Check 2 — ENG folder vs SQL
 │       └── gap_check.py           # Check 3 — day-by-day gap detection
 ├── sql/
-│   └── usp_GapCheck.sql       # reusable stored proc for gap detection
+│   └── usp_GapCheck.sql       # superseded, see note below — no longer used
 └── docker/
     ├── Dockerfile
     └── stack.yml
@@ -36,7 +36,10 @@ daily-rounds/
 1. Copy `.env.example` to `.env` and fill in real connection strings / SMTP creds.
 2. Copy `config/config.example.yaml` to `config/config.yaml` if you need to override
    defaults.
-3. Run `sql/usp_GapCheck.sql` against both Dev and Prod to install the stored proc.
+3. No SQL install step needed for the gap check — `gap_check.py` uses plain
+   `SELECT`/`GROUP BY` and computes gaps in Python, since the app account doesn't
+   have `CREATE PROCEDURE` rights on Prod. `sql/usp_GapCheck.sql` is kept for
+   reference only; it isn't used by the app.
 4. Confirm `/opt/flowloader/logs` exists on `sv-dg-d00-omd` (it's flow_watchdog's
    local log directory — see `docker/stack.yml`'s bind mount). No SSH setup needed.
 

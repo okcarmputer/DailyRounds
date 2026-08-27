@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from db import get_connection
 
 # Derived from the Check 1 freshness rules (1440 minutes / interval), except
@@ -33,17 +35,36 @@ GAP_CHECK_TABLES = {
 }
 
 
+def _find_gaps(cur, table, date_col, expected_per_day):
+    """
+    Plain SELECT/GROUP BY + gap-walk in Python, deliberately not a stored proc —
+    the account this runs as doesn't have CREATE PROCEDURE rights on Prod, and
+    this needs no more permission than the other checks already use (SELECT).
+    """
+    cur.execute(
+        f"SELECT CAST({date_col} AS date) AS [Day], COUNT(*) AS DayRowCount "
+        f"FROM {table} GROUP BY CAST({date_col} AS date)"
+    )
+    counts = {row.Day: row.DayRowCount for row in cur.fetchall()}
+    if not counts:
+        return []
+
+    day, max_day = min(counts), max(counts)
+    gaps = []
+    while day <= max_day:
+        if counts.get(day, 0) < expected_per_day:
+            gaps.append(day)
+        day += timedelta(days=1)
+    return gaps
+
+
 def run_gap_check():
     results = {"dev": [], "prod": []}
     for env, tables in GAP_CHECK_TABLES.items():
         with get_connection(env) as conn:
             cur = conn.cursor()
             for table, cfg in tables.items():
-                cur.execute(
-                    "EXEC dbo.usp_GapCheck @TableName=?, @DateColumn=?, @ExpectedRowsPerDay=?",
-                    table, cfg["date_col"], cfg["expected_per_day"],
-                )
-                gaps = [row[0] for row in cur.fetchall()]  # list of missing/short days
+                gaps = _find_gaps(cur, table, cfg["date_col"], cfg["expected_per_day"])
                 if gaps:
                     results[env].append({"table": table, "missing_or_short_days": gaps})
     return results

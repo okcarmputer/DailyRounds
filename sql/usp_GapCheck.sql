@@ -1,3 +1,7 @@
+-- SUPERSEDED — not used by the app. gap_check.py does this with plain SELECT/GROUP BY
+-- and a Python gap-walk instead, since the app's Prod account has no CREATE PROCEDURE
+-- rights and installing this on Prod requires a DBA. Kept here for reference only.
+
 CREATE OR ALTER PROCEDURE dbo.usp_GapCheck
     @TableName NVARCHAR(128),
     @DateColumn NVARCHAR(128),

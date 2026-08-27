@@ -77,6 +77,18 @@ right (the OPC UA subscription period is confirmed at 5s, so 2 minutes is
 generous under normal operation, but LastSeenAt's exact refresh behavior under
 the retained-replay dedup logic wasn't fully traced).
 
+## Known finding (not a code bug) — Dev pump-station data gap
+
+Testing Check 1 against live Dev on 2026-08-27 surfaced a real data issue, not a
+check-logic issue: `PumpStation_daily_pump_data`, `PumpStation_vol_flow`, and
+`PumpStation_vol_flow_sum` were all last updated 2026-08-10/11 (16-17 days stale)
+despite being expected to be live/current in Dev. Likely `missionscrape`'s loader
+isn't running against Dev. Worth chasing down separately from this repo — the
+check correctly flagged it once the datetime-handling bugs above were fixed.
+
+`flow_ii_data_stage`/`flow_ii_peak_stage` are also stale in Dev but are NOT
+expected to be live there, so their staleness is fine/expected.
+
 ## Still open
 
 1. Whether the `flagged` rule in `flow_loader_check.py` is right — every sample
