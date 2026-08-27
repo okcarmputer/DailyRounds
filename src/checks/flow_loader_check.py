@@ -2,8 +2,6 @@ import glob
 import os
 import re
 
-from db import get_connection
-
 # flow_watchdog (flow_monitor/src/data_import/watchdog_trigger.py) runs locally on
 # sv-dg-d00-omd, the same host daily-rounds is pinned to — confirmed via
 # `docker context ls` showing only the local socket and `docker logs flow_watchdog`
@@ -42,6 +40,8 @@ def _parse_report(text):
 
 
 def run_flow_loader_check():
+    from db import get_connection
+
     report_text = _latest_run_report()
     report_info = _parse_report(report_text) if report_text else {}
 
