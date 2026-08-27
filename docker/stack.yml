@@ -1,0 +1,20 @@
+version: "3.8"
+services:
+  daily-rounds:
+    image: rewacr-e2cfbhdwfhfbewad.azurecr.io/daily-rounds:latest
+    environment:
+      - TZ=America/New_York
+    env_file: .env
+    volumes:
+      # flow_watchdog's report directory — local to sv-dg-d00-omd (same host as
+      # this container), no SSH needed. See src/checks/flow_loader_check.py.
+      - type: bind
+        source: /opt/flowloader/logs
+        target: /mnt/flowloader-logs
+        read_only: true
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.hostname == sv-dg-d00-omd]
+      restart_policy:
+        condition: on-failure
