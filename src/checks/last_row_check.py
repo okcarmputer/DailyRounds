@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from db import get_connection
 
@@ -26,14 +26,14 @@ DEV_TABLES = {
     "DailyRainInfo":                {"order_col": "LoggedAt",                 "rule": "daily"},  # confirmed: same file
     "flow_ii_data_stage":           {"order_col": "Date_Time",                "rule": "daily"},  # confirmed: flow_monitor/src/data_import/file_parser.py processIIData()
     "flow_ii_peak_stage":           {"order_col": "Create_Date",              "rule": "daily"},  # confirmed: same file (Create_Date column exists; key is actually [SiteID, II_Week_Start])
-    # CONFIRM: hach_* tables not found in any of the 3 repos checked — likely a
-    # separate Hach hardware/API integration with no repo located yet.
+    # hach_* tables aren't in any of the 3 source repos checked (likely a separate
+    # Hach hardware/API integration with no repo located yet), but all three
+    # row-count guesses below matched live Dev data exactly on 2026-08-27 —
+    # confirmed empirically rather than from source.
     "hach_api_sites":               {"order_col": "lastmeasures_recorded_dttm", "rule": "log_only"},
-    "hach_data_channel":            {"rule": "row_count", "expected": 376},
-    "hach_flow_monitors":           {"rule": "row_count", "expected": 151},
-    # CONFIRM: you wrote "72 columns" — treating as 72 rows to match the pattern
-    # of the two rules above. Fix the expected value if that's wrong.
-    "hach_port_info":               {"rule": "row_count", "expected": 72},
+    "hach_data_channel":            {"rule": "row_count", "expected": 376},  # confirmed live: matched exactly
+    "hach_flow_monitors":           {"rule": "row_count", "expected": 151},  # confirmed live: matched exactly
+    "hach_port_info":               {"rule": "row_count", "expected": 72},  # confirmed live: matched exactly (was "72 columns" in original notes, treated as rows — correct)
     "OPC_Anomalies":                {"order_col": "DetectedAt", "rule": "log_only"},  # not in prod yet
     # confirmed table/column: OPC-UA-Client/opc-dashboard/sql/db.py. LastSeenAt is
     # refreshed on every MQTT message the ingest processes; the OPC UA subscription
@@ -82,19 +82,30 @@ PROD_TABLES = {
 def _evaluate(row_value, rule):
     if rule["rule"] == "log_only":
         return True, None
-    now = datetime.now(timezone.utc)
+
     if rule["rule"] == "freshness":
+        # pyodbc returns naive datetimes for SQL Server DATETIME columns
+        # (server local time, no tzinfo) — compare against naive local now,
+        # not an aware UTC now, or the subtraction raises TypeError.
+        now = datetime.now()
         ok = (now - row_value) <= rule["max_age"]
         return ok, None if ok else f"last row is older than {rule['max_age']}"
+
+    # SQL Server DATE columns come back from pyodbc as datetime.date, not
+    # datetime.datetime — .date() only exists on the latter, so branch on type
+    # instead of assuming every column is a full datetime.
+    row_date = row_value.date() if isinstance(row_value, datetime) else row_value
+    today = datetime.now().date()
+
     if rule["rule"] == "daily":
-        ok = row_value.date() >= (now - timedelta(days=1)).date()
+        ok = row_date >= today - timedelta(days=1)
         return ok, None if ok else "no row today or yesterday"
     if rule["rule"] == "yesterday":
-        ok = row_value.date() == (now - timedelta(days=1)).date()
+        ok = row_date == today - timedelta(days=1)
         return ok, None if ok else "latest row isn't dated yesterday"
     if rule["rule"] == "weekly_monday":
-        most_recent_monday = now.date() - timedelta(days=now.weekday())
-        ok = row_value.date() == most_recent_monday
+        most_recent_monday = today - timedelta(days=today.weekday())
+        ok = row_date == most_recent_monday
         return ok, None if ok else "latest row isn't dated the most recent Monday"
     return True, None
 
