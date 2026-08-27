@@ -15,8 +15,6 @@ GAP_CHECK_TABLES = {
         "DailyPumpRuntimes":        {"date_col": "LoggedAt", "expected_per_day": 1},
         "DailyRainInfo":            {"date_col": "LoggedAt", "expected_per_day": 1},
         "flow_ii_data_stage":       {"date_col": "Date_Time", "expected_per_day": 1},
-        "flow_ii_peak_stage":       {"date_col": "Create_Date", "expected_per_day": 1},
-        "OPCAudit_Live":            {"date_col": "LastSeenAt", "expected_per_day": 720},   # every 2 min
         "PumpStation_vol_flow":     {"date_col": "Date", "expected_per_day": 1},
         "PumpStation_vol_flow_sum": {"date_col": "Date", "expected_per_day": 1},
         # RiverwoodFarmsFlowLog intentionally NOT gap-checked here: per
@@ -24,6 +22,18 @@ GAP_CHECK_TABLES = {
         # tracked field's value changes (event-driven), not on a fixed interval —
         # a flat expected-rows-per-day count would false-flag normal quiet periods.
         # The freshness rule in last_row_check.py is the right check for this table.
+        #
+        # flow_ii_peak_stage intentionally NOT gap-checked: a live 14-day sample
+        # (2026-08-27) showed exactly one day with any rows at all (124 on
+        # 2026-08-21, zero every other day) — it's populated by periodic backfill
+        # runs (flow_monitor/src/data_import/backfill_ii_data.py, backfill_month.py),
+        # not continuous daily writes, so a rows-per-day model doesn't apply.
+        #
+        # OPCAudit_Live intentionally NOT gap-checked: a live sample showed ~29k
+        # rows all dated "today" and zero on every prior day — it's an
+        # upsert/live-state table (LastSeenAt updated in place per device on every
+        # MQTT message, not appended), so rows-per-day is meaningless here. The
+        # freshness rule in last_row_check.py is the correct check for this table.
     },
     "prod": {
         "hach_site_measurements": {"date_col": "MeasurementTime", "expected_per_day": 24},
